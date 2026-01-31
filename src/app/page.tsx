@@ -155,7 +155,7 @@ export default function HomePage() {
                 const el = document.getElementById(
                   "room-input",
                 ) as HTMLInputElement | null;
-                if (el && el.value) router.push(`/room/${el.value}`);
+                if (el && el.value) window.location.href = `/room/${el.value}`;
               }}
               className="px-4 py-2 bg-white/10 rounded"
             >

@@ -1,65 +1,244 @@
-import Image from "next/image";
+// src/app/page.tsx
+"use client";
+import { useRouter } from "next/navigation";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, doc, getDoc } from "firebase/firestore";
+import { useEffect, useState, useRef } from "react";
 
-export default function Home() {
+export default function HomePage() {
+  const router = useRouter();
+  const [scanning, setScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let detector: any = null;
+    let rafId: number;
+
+    const start = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        if ((window as any).BarcodeDetector) {
+          detector = new (window as any).BarcodeDetector({
+            formats: ["qr_code"],
+          });
+        }
+
+        const tick = async () => {
+          try {
+            if (detector && videoRef.current) {
+              const detections = await detector.detect(videoRef.current);
+              if (detections && detections.length > 0) {
+                handleScanResult(detections[0].rawValue);
+                return;
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+          rafId = requestAnimationFrame(tick);
+        };
+
+        rafId = requestAnimationFrame(tick);
+      } catch (e) {
+        setScanError("Camera access denied or not available.");
+      }
+    };
+
+    if (scanning) start();
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+      if (rafId) cancelAnimationFrame(rafId);
+      if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+        } catch {}
+      }
+    };
+  }, [scanning]);
+
+  const handleScanResult = async (value: string) => {
+    setScanning(false);
+    try {
+      const url = new URL(value);
+      if (url.origin !== window.location.origin) {
+        setScanError("Invalid QR code origin");
+        return;
+      }
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts[0] !== "room" || !parts[1]) {
+        setScanError("QR code not a room link");
+        return;
+      }
+      const rid = parts[1];
+      const roomRef = doc(db, "rooms", rid);
+      const snap = await getDoc(roomRef);
+      if (!snap.exists()) {
+        setScanError("Room does not exist");
+        return;
+      }
+      router.push(`/room/${rid}`);
+    } catch (e) {
+      setScanError("Invalid QR code");
+    }
+  };
+
+  const createRoom = async () => {
+    const docRef = await addDoc(collection(db, "rooms"), {
+      createdAt: Date.now(),
+    });
+    router.push(`/room/${docRef.id}`);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-blue-900 to-blue-700 text-white">
+      <div className="w-full max-w-md bg-white/5 p-6 rounded-xl shadow-lg text-center">
+        <h2 className="text-3xl font-extrabold mb-2">Share It</h2>
+        <p className="text-blue-200 mb-4">
+          Send or receive files directly — mobile friendly.
+        </p>
+
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={createRoom}
+            className="w-full px-6 py-3 bg-blue-600 rounded-md text-white font-semibold flex items-center justify-center gap-2"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 5v14"
+                stroke="#fff"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M5 12h14"
+                stroke="#fff"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Create Room
+          </button>
+
+          <div className="flex gap-2">
+            <input
+              id="room-input"
+              type="text"
+              placeholder="Enter room ID"
+              className="flex-1 px-4 py-2 rounded bg-white/10 text-white placeholder-blue-200"
+              onKeyDown={(e) =>
+                e.key === "Enter" &&
+                router.push(`/room/${(e.target as HTMLInputElement).value}`)
+              }
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <button
+              onClick={() => {
+                const el = document.getElementById(
+                  "room-input",
+                ) as HTMLInputElement | null;
+                if (el && el.value) router.push(`/room/${el.value}`);
+              }}
+              className="px-4 py-2 bg-white/10 rounded"
+            >
+              Join
+            </button>
+          </div>
+
+          <button
+            onClick={() => {
+              setScanError(null);
+              setScanning(true);
+            }}
+            className="w-full px-4 py-2 bg-white/10 rounded flex items-center justify-center gap-2"
           >
-            Documentation
-          </a>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect
+                x="3"
+                y="3"
+                width="6"
+                height="6"
+                rx="1"
+                stroke="#fff"
+                strokeWidth="2"
+              />
+              <rect
+                x="15"
+                y="3"
+                width="6"
+                height="6"
+                rx="1"
+                stroke="#fff"
+                strokeWidth="2"
+              />
+              <rect
+                x="3"
+                y="15"
+                width="6"
+                height="6"
+                rx="1"
+                stroke="#fff"
+                strokeWidth="2"
+              />
+              <rect
+                x="15"
+                y="15"
+                width="6"
+                height="6"
+                rx="1"
+                stroke="#fff"
+                strokeWidth="2"
+              />
+            </svg>
+            Scan QR
+          </button>
+
+          {scanning && (
+            <div className="mt-4">
+              <video ref={videoRef} className="w-full rounded" />
+              {scanError && (
+                <div className="text-sm text-red-300 mt-2">{scanError}</div>
+              )}
+              <div className="mt-2 flex justify-between">
+                <button
+                  onClick={() => setScanning(false)}
+                  className="px-3 py-2 bg-white/10 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      </main>
+
+        <p className="text-xs text-blue-200 mt-4">
+          Tip: Use your phone camera to scan the recipient's QR.
+        </p>
+      </div>
     </div>
   );
 }

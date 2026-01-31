@@ -88,7 +88,7 @@ export default function HomePage() {
         setScanError("Room does not exist");
         return;
       }
-      router.push(`/room/${rid}`);
+      window.location.href = `/room/${rid}`;
     } catch (e) {
       setScanError("Invalid QR code");
     }

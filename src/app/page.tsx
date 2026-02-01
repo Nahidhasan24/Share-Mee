@@ -104,7 +104,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-blue-900 to-blue-700 text-white">
       <div className="w-full max-w-md bg-white/5 p-6 rounded-xl shadow-lg text-center">
-        <h2 className="text-3xl font-extrabold mb-2">Share It</h2>
+        <h2 className="text-3xl font-extrabold mb-2">Share Mee</h2>
         <p className="text-blue-200 mb-4">
           Send or receive files directly — mobile friendly.
         </p>

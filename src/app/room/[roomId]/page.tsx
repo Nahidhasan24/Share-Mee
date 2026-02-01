@@ -291,7 +291,7 @@ export default function RoomPage() {
 
           <div className="flex flex-col space-y-2">
             <button
-              onClick={() => navigator.clipboard?.writeText(peerId)}
+              onClick={() => navigator.clipboard?.writeText(roomId!)}
               className="px-3 py-1 bg-white/10 rounded text-sm"
             >
               Copy ID
